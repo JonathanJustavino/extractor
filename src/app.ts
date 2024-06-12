@@ -2,14 +2,35 @@ import puppeteer, { ElementHandle } from "puppeteer";
 import { Page } from "puppeteer";
 
 
+
+function find(item: HTMLElement | null, parentClass: string): HTMLElement | null {
+    while (true) {
+        if (!item) {
+            return null;
+        }
+
+        if (item.getAttribute("class") === parentClass) {
+            return item;
+        }
+
+        item = item.parentElement;
+    }
+}
+
 class App {
 
-    async searchATags(page: Page): Promise<string[]> {
-        const links = await page.$$eval('a.a-download--compact', (links) => (
-            links
-            .map((link) => link.getAttribute("href") ?? "")
-            .filter((item) => (item.toLowerCase().endsWith(".pdf")))
-        ));
+    async searchATags(page: Page): Promise<{ title: string | null, url: string }[]> {
+        const links = await page.$$eval('a.a-download--compact', (links) => {
+            return links
+                .map(link => {
+                    return {
+                        title: link.getAttribute("title"),
+                        url: link.getAttribute("href") ?? ""
+                    };
+                })
+                .filter(item => item.url.toLowerCase().endsWith(".pdf"));
+        });
+        console.log("llllll", links.length);
         return links;
     }
 
@@ -22,51 +43,76 @@ class App {
         return links;
     }
 
+    createData(keys: string[], values: string[]) {
+        const result = [];
+        const chunkSize = keys.length;
+
+        for (let i = 0; i < values.length; i += chunkSize) {
+            const chunk = values.slice(i, i + chunkSize);
+            const data = new Map();
+
+            keys.forEach((key, index) => {
+                data.set(key, chunk[index]);
+            });
+
+            result.push(data);
+        }
+
+        return result;
+    }
+
+
     async relatedInfo(tableHandle: ElementHandle<HTMLTableElement>) {
-        let headers = await tableHandle!.$$eval('thead > tr > th > p', (elements) => {
-            let content = elements.map((item) => {
-                console.log(item);
-                return item.innerHTML;
-            });
 
+        let headers = await tableHandle!.$$eval('thead > tr > th', (elements) => {
+            let content = elements.map((item) => {
+                // console.log("text", item.textContent);
+                return item.textContent!;
+            });
             return content;
         });
 
-        let tbody = await tableHandle!.$$eval('tbody > tr > td > p', (elements) => {
+        let tbody = await tableHandle!.$$eval('tbody > tr > td', (elements) => {
             let content = elements.map((item) => {
-                console.log(item);
-                return item.innerHTML;
+                return item.textContent!;
             });
-
             return content;
         });
 
-        let data = new Map();
+        // console.log(headers)
+        // console.log(tbody)
 
-        headers.forEach((value, index) => {
-            data.set(value, tbody[index]);
-        });
+        // let data = new Map();
+
+        // headers.forEach((value, index) => {
+        //     data.set(value, tbody[index]);
+        // });
+
+        const data = this.createData(headers, tbody);
 
         return data;
     }
 
 
     async topDown(page: Page) {
-        let sums = await page.waitForSelector('summary.m-expander__summary');
-        console.log("sums", sums);
-        if(!sums) {
-            console.error("no summaries");
+
+        let details = await page.$$('details.m-expander__details');
+        let data = [];
+
+        for (const detail of details) {
+            const text = await detail.$eval('summary', node => node.innerText);
+            // console.log(text);
+
+            const tableHandle = await detail.$('table.table-striped');
+
+            if (tableHandle) {
+                let item = await this.relatedInfo(tableHandle);
+                // item.set('header', text);
+                data.push(item);
+            }
         }
 
-        let table = await page.waitForSelector('table.table-striped');
-        console.log("t", table);
-
-        if(!table) {
-            console.error("no table");
-        }
-
-        let result = await this.relatedInfo(table!);
-        console.log(result);
+        return data;
     }
 
     async fetch_url() {
@@ -80,9 +126,20 @@ class App {
 
             await page.waitForSelector('summary.m-expander__summary');
 
-            // const links = await this.rawLink(page);
-            const table = await this.topDown(page);
-            // console.log(table);
+            const links = await this.searchATags(page);
+            const data = await this.topDown(page);
+
+
+            // console.log(links.length);
+            // console.log(data.length);
+
+            // data.forEach((item, index) => {
+            //     item.set('Download', links[index].url);
+            // });
+
+            console.log(data);
+
+            // console.log(links);
             console.log('done retrieving');
         } catch (error) {
             console.error(error);
