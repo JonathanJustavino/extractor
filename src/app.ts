@@ -26,11 +26,10 @@ class App {
                     return {
                         title: link.getAttribute("title"),
                         url: link.getAttribute("href") ?? ""
-                    };
+                    }
                 })
                 .filter(item => item.url.toLowerCase().endsWith(".pdf"));
         });
-        console.log("llllll", links.length);
         return links;
     }
 
@@ -62,11 +61,10 @@ class App {
     }
 
 
-    async relatedInfo(tableHandle: ElementHandle<HTMLTableElement>) {
+    async relatedInfo(tableHandle: ElementHandle<HTMLTableElement>, exclude?: string) {
 
         let headers = await tableHandle!.$$eval('thead > tr > th', (elements) => {
             let content = elements.map((item) => {
-                // console.log("text", item.textContent);
                 return item.textContent!;
             });
             return content;
@@ -79,14 +77,9 @@ class App {
             return content;
         });
 
-        // console.log(headers)
-        // console.log(tbody)
-
-        // let data = new Map();
-
-        // headers.forEach((value, index) => {
-        //     data.set(value, tbody[index]);
-        // });
+        if (exclude) {
+            tbody = tbody.filter(content => !content.includes(exclude));
+        }
 
         const data = this.createData(headers, tbody);
 
@@ -101,17 +94,24 @@ class App {
 
         for (const detail of details) {
             const text = await detail.$eval('summary', node => node.innerText);
-            // console.log(text);
 
             const tableHandle = await detail.$('table.table-striped');
 
             if (tableHandle) {
-                let item = await this.relatedInfo(tableHandle);
-                // item.set('header', text);
-                data.push(item);
+                const filter = "Bitte beachten Sie zusätzlich die geltenden" ;
+                let items = await this.relatedInfo(tableHandle, filter);
+                items = items.map((item) => item.set('header', text));
+                data.push(...items);
             }
         }
 
+        return data;
+    }
+
+    merge(data: Map<string, string>[], links: { title: string | null, url: string }[]) {
+        data.flatMap((item, index) => {
+            item.set("Download", links[index].url)
+        })
         return data;
     }
 
@@ -129,17 +129,12 @@ class App {
             const links = await this.searchATags(page);
             const data = await this.topDown(page);
 
+            const info = this.merge(data, links);
+            // console.log(info);
+            info.forEach(element => {
+                console.log(element);
+            });
 
-            // console.log(links.length);
-            // console.log(data.length);
-
-            // data.forEach((item, index) => {
-            //     item.set('Download', links[index].url);
-            // });
-
-            console.log(data);
-
-            // console.log(links);
             console.log('done retrieving');
         } catch (error) {
             console.error(error);
