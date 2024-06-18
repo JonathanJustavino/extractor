@@ -1,21 +1,16 @@
 import puppeteer, { ElementHandle } from "puppeteer";
 import { Page } from "puppeteer";
+import * as fs from 'fs';
 
 
-
-function find(item: HTMLElement | null, parentClass: string): HTMLElement | null {
-    while (true) {
-        if (!item) {
-            return null;
-        }
-
-        if (item.getAttribute("class") === parentClass) {
-            return item;
-        }
-
-        item = item.parentElement;
-    }
+interface Part {
+    'Nr.:' : string;
+    'Titel' :string;
+    'Gültig ab': string;
+    'Download': string;
+    'header': string;
 }
+
 
 class App {
 
@@ -28,7 +23,7 @@ class App {
                         url: link.getAttribute("href") ?? ""
                     }
                 })
-                .filter(item => item.url.toLowerCase().endsWith(".pdf"));
+            .filter(item => item.url.toLowerCase().endsWith(".pdf"));
         });
         return links;
     }
@@ -60,7 +55,6 @@ class App {
         return result;
     }
 
-
     async relatedInfo(tableHandle: ElementHandle<HTMLTableElement>, exclude?: string) {
 
         let headers = await tableHandle!.$$eval('thead > tr > th', (elements) => {
@@ -85,7 +79,6 @@ class App {
 
         return data;
     }
-
 
     async topDown(page: Page) {
 
@@ -115,14 +108,92 @@ class App {
         return data;
     }
 
+    reverseDate(date: string): string {
+        const [day, month, year] = date.split('.');
+        return `${year}-${month}-${day}`;
+    }
+
+    extractGroup(header: string | undefined): string {
+        const groupRegEx = /.*\d+/
+        if(!header) {
+            return "";
+        }
+
+        const match = header.match(groupRegEx);
+        const result = match?.[0]
+        let group = result ?? "";
+        group = group.replace(" ", "-");
+        return group;
+    }
+
+
+    build(entry: Map<string, string>): any {
+        const license = "https://www.dbinfrago.com/web/schienennetz/netzzugang-und-regulierung/nutzungsbedingungen/NBN-INB/Nutzungsbedingungen-Netz-der-DB-Netz-AG-NBN-2024-12595472#"
+        const link = "https://www.dbinfrago.com/web/schienennetz/netzzugang-und-regulierung/regelwerke/betrieblich-technisch_regelwerke/betrieblich_technisches_regelwerk-12596092#";
+        const date = entry.get("Gültig ab") ?? "";
+        const hasVersion = this.reverseDate(date);
+        const user = "prototype"
+        const group = this.extractGroup(entry.get("header"));
+        const artifact = entry.get("Nr.:");
+        let id = `https://dev.databus.debpedia.org/${user}/${group}/${artifact}/${hasVersion}`;
+        const baseURL = new URL(link);
+        const download = entry.get("Download");
+        const downloadURL = `${baseURL.hostname}/${download}`;
+
+        let output: any = {
+            "@context": "https://downloads.dbpedia.org/databus/context.jsonld",
+            "@graph": [
+                {
+                    "@type": [
+                        "Version",
+                        "Dataset",
+                    ],
+                    "@id": id,
+                    "hasVersion": hasVersion,
+                    "title": entry.get("Titel"),
+                    "description": "version of the test_artifact dataset from DBpedia",
+                    "abstract": `PDF as found on this page: ${link}`,
+                    "license": license,
+                    "distribution": [
+                        {
+                        "@type": "Part",
+                        "formatExtension": "pdf",
+                        "compression": "none",
+                        "downloadURL": downloadURL,
+                        }
+                    ]
+                }
+            ]
+        }
+
+        console.log(output);
+
+        return output;
+    }
+
+
+    // to_format(data: Map<string, string>[]) {
+    to_format(data: Map<string, string>[]) {
+        const entries = data.map(element => {
+            this.build(element);
+        });
+    }
+
+
+    group_format(data: Map<string, string>, url: string) {
+
+    }
+
+
     async fetch_url() {
         try {
             const URL = "https://www.dbinfrago.com/web/schienennetz/netzzugang-und-regulierung/regelwerke/betrieblich-technisch_regelwerke/betrieblich_technisches_regelwerk-12596092#";
             const browser = await puppeteer.launch({ headless: false, devtools: true });
             const page = await browser.newPage();
+            page.goto(URL);
 
             await page.setViewport({ width: 1080, height: 1024 });
-            await page.goto(URL, { waitUntil: 'load' });
+
 
             await page.waitForSelector('summary.m-expander__summary');
 
@@ -130,10 +201,13 @@ class App {
             const data = await this.topDown(page);
 
             const info = this.merge(data, links);
-            // console.log(info);
-            info.forEach(element => {
-                console.log(element);
-            });
+
+            console.log(info);
+            // info.forEach(element => {
+            //     console.log(element);
+            // });
+
+            this.to_format(info);
 
             console.log('done retrieving');
         } catch (error) {
