@@ -129,10 +129,10 @@ class App {
         const group = this.extractGroup(header);
         const artifact = entry.get("Nr.:");
         const title = entry.get("Titel");
-        let id = `https://dev.databus.debpedia.org/${user}/${group}/${artifact}/${hasVersion}`;
+        let id = `https://dev.databus.dbpedia.org/${user}/${group}/${artifact}/${hasVersion}`;
         const baseURL = new URL(link);
         const download = entry.get("Download");
-        const downloadURL = `${baseURL.hostname}/${download}`;
+        const downloadURL = `${baseURL.hostname}${download}`;
 
         let output: any = {
             "@context": "https://downloads.dbpedia.org/databus/context.jsonld",
@@ -140,7 +140,7 @@ class App {
                 {
                     "@type": [
                         "Version",
-                        "Dataset",
+                        "Dataset"
                     ],
                     "@id": id,
                     "hasVersion": hasVersion,
@@ -153,7 +153,7 @@ class App {
                             "@type": "Part",
                             "formatExtension": "pdf",
                             "compression": "none",
-                            "downloadURL": downloadURL,
+                            "downloadURL": downloadURL
                         }
                     ]
                 }
@@ -208,6 +208,10 @@ class App {
         } catch (error) {
             console.error(error);
         }
+    }
+
+    publishFiles(dir: string) {
+
     }
 
     public async start() {
