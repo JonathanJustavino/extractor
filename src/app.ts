@@ -1,15 +1,7 @@
 import puppeteer, { ElementHandle } from "puppeteer";
 import { Page } from "puppeteer";
 import * as fs from 'fs';
-
-
-interface Part {
-    'Nr.:' : string;
-    'Titel' :string;
-    'Gültig ab': string;
-    'Download': string;
-    'header': string;
-}
+import path from "path";
 
 
 class App {
@@ -127,14 +119,16 @@ class App {
     }
 
 
-    build(entry: Map<string, string>): any {
+    build(entry: Map<string, string>, index: number): any {
         const license = "https://www.dbinfrago.com/web/schienennetz/netzzugang-und-regulierung/nutzungsbedingungen/NBN-INB/Nutzungsbedingungen-Netz-der-DB-Netz-AG-NBN-2024-12595472#"
         const link = "https://www.dbinfrago.com/web/schienennetz/netzzugang-und-regulierung/regelwerke/betrieblich-technisch_regelwerke/betrieblich_technisches_regelwerk-12596092#";
         const date = entry.get("Gültig ab") ?? "";
         const hasVersion = this.reverseDate(date);
         const user = "prototype"
-        const group = this.extractGroup(entry.get("header"));
+        const header = entry.get("header");
+        const group = this.extractGroup(header);
         const artifact = entry.get("Nr.:");
+        const title = entry.get("Titel");
         let id = `https://dev.databus.debpedia.org/${user}/${group}/${artifact}/${hasVersion}`;
         const baseURL = new URL(link);
         const download = entry.get("Download");
@@ -150,40 +144,43 @@ class App {
                     ],
                     "@id": id,
                     "hasVersion": hasVersion,
-                    "title": entry.get("Titel"),
-                    "description": "version of the test_artifact dataset from DBpedia",
+                    "title": title,
+                    "description": `${header} / ${title}`,
                     "abstract": `PDF as found on this page: ${link}`,
                     "license": license,
                     "distribution": [
                         {
-                        "@type": "Part",
-                        "formatExtension": "pdf",
-                        "compression": "none",
-                        "downloadURL": downloadURL,
+                            "@type": "Part",
+                            "formatExtension": "pdf",
+                            "compression": "none",
+                            "downloadURL": downloadURL,
                         }
                     ]
                 }
             ]
         }
 
-        console.log(output);
+        let jsonString = JSON.stringify(output, null, 2);
+        let dir = path.dirname(__dirname)
+        const filePath = path.join(dir, "output", `file-${index}.jsonld`)
+        fs.writeFile(filePath, jsonString, (err) => {
+            if (err) {
+                console.error("Error writing file", err);
+            }
+            else {
+                console.log("Successful wrote file");
+            }
+        })
 
         return output;
     }
 
-
-    // to_format(data: Map<string, string>[]) {
     to_format(data: Map<string, string>[]) {
-        const entries = data.map(element => {
-            this.build(element);
+        const entries = data.map((element, index) => {
+            return this.build(element, index);
         });
+        return entries;
     }
-
-
-    group_format(data: Map<string, string>, url: string) {
-
-    }
-
 
     async fetch_url() {
         try {
@@ -202,12 +199,10 @@ class App {
 
             const info = this.merge(data, links);
 
-            console.log(info);
-            // info.forEach(element => {
-            //     console.log(element);
-            // });
-
-            this.to_format(info);
+            const result = this.to_format(info);
+            result.forEach(element => {
+                console.log(element);
+            });
 
             console.log('done retrieving');
         } catch (error) {
