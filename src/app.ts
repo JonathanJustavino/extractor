@@ -132,7 +132,7 @@ class App {
         let id = `https://dev.databus.dbpedia.org/${user}/${group}/${artifact}/${hasVersion}`;
         const baseURL = new URL(link);
         const download = entry.get("Download");
-        const downloadURL = `${baseURL.hostname}${download}`;
+        const downloadURL = `https://${baseURL.hostname}${download}`;
 
         let output: any = {
             "@context": "https://downloads.dbpedia.org/databus/context.jsonld",
