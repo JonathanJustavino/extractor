@@ -1,7 +1,7 @@
 dst/
 node_modules/
 package-lock.json
-test-data/
+utils/
 output/
 draft.txt
 draft_file.txt

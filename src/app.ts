@@ -126,7 +126,8 @@ class App {
         const hasVersion = this.reverseDate(date);
         const user = "prototype"
         const header = entry.get("header");
-        const group = this.extractGroup(header);
+        // const group = this.extractGroup(header);
+        const group = "RIL";
         const artifact = entry.get("Nr.:");
         const title = entry.get("Titel");
         let id = `https://dev.databus.dbpedia.org/${user}/${group}/${artifact}/${hasVersion}`;
